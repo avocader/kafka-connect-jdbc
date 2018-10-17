@@ -167,6 +167,13 @@ public class JdbcSourceConnectorConfig extends AbstractConfig {
   public static final String QUERY_DEFAULT = "";
   private static final String QUERY_DISPLAY = "Query";
 
+  public static final String QUERY_SUFFIX_CONFIG = "query.suffix";
+  private static final String QUERY_SUFFIX_DOC =
+      "If specified, the query suffix to append at the end of the query constructed by "
+      + "the configured connector.";
+  public static final String QUERY_SUFFIX_DEFAULT = "";
+  private static final String QUERY_SUFFIX_DISPLAY = "Query Suffix";
+
   public static final String TOPIC_PREFIX_CONFIG = "topic.prefix";
   private static final String TOPIC_PREFIX_DOC =
       "Prefix to prepend to table names to generate the name of the Kafka topic to publish data "
@@ -389,7 +396,17 @@ public class JdbcSourceConnectorConfig extends AbstractConfig {
         MODE_GROUP,
         5,
         Width.SHORT,
-        QUERY_DISPLAY);
+        QUERY_DISPLAY
+    ).define(
+        QUERY_SUFFIX_CONFIG,
+        Type.STRING,
+        QUERY_SUFFIX_DEFAULT,
+        Importance.LOW,
+        QUERY_SUFFIX_DOC,
+        MODE_GROUP,
+        6,
+        Width.SHORT,
+        QUERY_SUFFIX_DISPLAY);
   }
 
   private static final void addConnectorOptions(ConfigDef config) {

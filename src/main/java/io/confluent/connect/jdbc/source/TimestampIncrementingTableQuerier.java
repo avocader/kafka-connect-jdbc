@@ -63,8 +63,10 @@ public class TimestampIncrementingTableQuerier extends TableQuerier {
   private String incrementingColumn;
   private long timestampDelay;
   private TimestampIncrementingOffset offset;
+  private final String querySuffix;
 
-  public TimestampIncrementingTableQuerier(QueryMode mode, String name, String topicPrefix,
+  public TimestampIncrementingTableQuerier(QueryMode mode, String name,
+                                           String topicPrefix, String querySuffix,
                                            String timestampColumn, String incrementingColumn,
                                            Map<String, Object> offsetMap, Long timestampDelay,
                                            String schemaPattern, boolean mapNumerics) {
@@ -73,6 +75,7 @@ public class TimestampIncrementingTableQuerier extends TableQuerier {
     this.incrementingColumn = incrementingColumn;
     this.timestampDelay = timestampDelay;
     this.offset = TimestampIncrementingOffset.fromMap(offsetMap);
+    this.querySuffix = querySuffix;
   }
 
   @Override
@@ -105,6 +108,10 @@ public class TimestampIncrementingTableQuerier extends TableQuerier {
     } else if (timestampColumn != null) {
       timestampWhereClause(builder, quoteString);
     }
+
+    // Append query suffix
+    builder.append(" ").append(querySuffix);
+
     String queryString = builder.toString();
     log.debug("{} prepared SQL query: {}", this, queryString);
     stmt = db.prepareStatement(queryString);
