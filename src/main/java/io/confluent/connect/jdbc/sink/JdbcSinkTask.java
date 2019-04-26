@@ -21,12 +21,14 @@ import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
+import org.apache.kafka.connect.sink.SinkTaskContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.sql.SQLException;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Set;
 
 import io.confluent.connect.jdbc.dialect.DatabaseDialect;
 import io.confluent.connect.jdbc.dialect.DatabaseDialects;
@@ -38,13 +40,42 @@ public class JdbcSinkTask extends SinkTask {
   JdbcSinkConfig config;
   JdbcDbWriter writer;
   int remainingRetries;
+  private OffsetsDbStorage offsetsStorage;
+
+
+  @Override
+  public void initialize(SinkTaskContext context) {
+    this.context = context;
+    log.warn("Initializing Sink Task, assignment: {}", this.context.assignment());
+  }
+
+  @Override
+  public void open(Collection<TopicPartition> partitions) {
+    log.info("Opened, assignment: {}", context.assignment());
+    loadOffsets(context.assignment());
+  }
 
   @Override
   public void start(final Map<String, String> props) {
-    log.info("Starting JDBC Sink task");
+    log.info("Starting JDBC Sink task, assignment: {}", context.assignment());
     config = new JdbcSinkConfig(props);
     initWriter();
     remainingRetries = config.maxRetries;
+  }
+
+  private void loadOffsets(Set<TopicPartition> assignment) {
+    log.warn("Loading offsets, assignment: {}", this.context.assignment());
+    final DbStructure dbStructure = new DbStructure(dialect);
+    offsetsStorage = new OffsetsDbStorage(config, dialect, dbStructure);
+    try {
+      Map<TopicPartition, Long> offsets = offsetsStorage.read(assignment);
+      log.warn("Loaded offsets: {}", offsets);
+      context.offset(offsets);
+    } catch (SQLException e) {
+      e.printStackTrace();
+      log.error("Unable to load offsets", e);
+      throw new ConnectException(e);
+    }
   }
 
   void initWriter() {
@@ -65,13 +96,15 @@ public class JdbcSinkTask extends SinkTask {
     }
     final SinkRecord first = records.iterator().next();
     final int recordsCount = records.size();
-    log.debug(
+    log.warn(
         "Received {} records. First record kafka coordinates:({}-{}-{}). Writing them to the "
-        + "database...",
+            + "database...",
         recordsCount, first.topic(), first.kafkaPartition(), first.kafkaOffset()
     );
     try {
-      writer.write(records);
+      Map<TopicPartition, OffsetAndMetadata> offsets = writer.write(records);
+      log.warn("Wrote {} records. Offsets to commit: {}", recordsCount, offsets);
+      offsetsStorage.writeAndCommit(offsets);
     } catch (SQLException sqle) {
       log.warn(
           "Write of {} records failed, remainingRetries={}",

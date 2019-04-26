@@ -136,7 +136,7 @@ public class JdbcSourceConnectorConfig extends AbstractConfig {
       + "detect only new rows. Note that this will not detect modifications or "
       + "deletions of existing rows.\n"
       + "  * timestamp - use a timestamp (or timestamp-like) column to detect new and modified "
-      + "rows. This assumes the column is updated with each write, and that values are "
+      + "rows. This assumes the column is updated with each writeAndCommit, and that values are "
       + "monotonically incrementing, but not necessarily unique.\n"
       + "  * timestamp+incrementing - use two columns, a timestamp column that detects new and "
       + "modified rows and a strictly incrementing column which provides a globally unique ID for "

@@ -242,6 +242,7 @@ public class GenericDatabaseDialect implements DatabaseDialect {
       try (Statement statement = connection.createStatement()) {
         if (statement.execute(query)) {
           try (ResultSet rs = statement.getResultSet()) {
+            rs.getClass();
             // do nothing with the result set
           }
         }
@@ -867,6 +868,7 @@ public class GenericDatabaseDialect implements DatabaseDialect {
    * @param optional   true if the field is to be optional as obtained from the column definition
    * @return the name of the field, or null if no field was added
    */
+  @SuppressWarnings("fallthrough")
   protected String addFieldToSchema(
       final ColumnDefinition columnDefn,
       final SchemaBuilder builder,
@@ -1087,7 +1089,7 @@ public class GenericDatabaseDialect implements DatabaseDialect {
     );
   }
 
-  @SuppressWarnings("deprecation")
+  @SuppressWarnings({"deprecation", "fallthrough"})
   protected ColumnConverter columnConverterFor(
       final ColumnMapping mapping,
       final ColumnDefinition defn,

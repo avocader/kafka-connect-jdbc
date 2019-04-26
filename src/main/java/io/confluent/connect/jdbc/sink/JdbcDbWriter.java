@@ -15,28 +15,33 @@
 
 package io.confluent.connect.jdbc.sink;
 
+import org.apache.kafka.clients.consumer.OffsetAndMetadata;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
 import io.confluent.connect.jdbc.dialect.DatabaseDialect;
 import io.confluent.connect.jdbc.util.CachedConnectionProvider;
 import io.confluent.connect.jdbc.util.TableId;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class JdbcDbWriter {
   private static final Logger log = LoggerFactory.getLogger(JdbcDbWriter.class);
+
 
   private final JdbcSinkConfig config;
   private final DatabaseDialect dbDialect;
   private final DbStructure dbStructure;
   final CachedConnectionProvider cachedConnectionProvider;
+  private int recordsToCommit;
 
   JdbcDbWriter(final JdbcSinkConfig config, DatabaseDialect dbDialect, DbStructure dbStructure) {
     this.config = config;
@@ -52,11 +57,17 @@ public class JdbcDbWriter {
     };
   }
 
-  void write(final Collection<SinkRecord> records) throws SQLException {
+  Map<TopicPartition, OffsetAndMetadata> write(final Collection<SinkRecord> records)
+      throws SQLException {
+    Map<TopicPartition, OffsetAndMetadata> offsetsToCommit = new HashMap<>();
     final Connection connection = cachedConnectionProvider.getConnection();
 
     final Map<TableId, BufferedRecords> bufferByTable = new HashMap<>();
     for (SinkRecord record : records) {
+      offsetsToCommit.put(
+          new TopicPartition(record.topic(), record.kafkaPartition()),
+          new OffsetAndMetadata(record.kafkaOffset() + 1)
+      );
       final TableId tableId = destinationTable(record.topic());
       BufferedRecords buffer = bufferByTable.get(tableId);
       if (buffer == null) {
@@ -64,15 +75,26 @@ public class JdbcDbWriter {
         bufferByTable.put(tableId, buffer);
       }
       buffer.add(record);
+      recordsToCommit++;
     }
     for (Map.Entry<TableId, BufferedRecords> entry : bufferByTable.entrySet()) {
       TableId tableId = entry.getKey();
       BufferedRecords buffer = entry.getValue();
-      log.debug("Flushing records in JDBC Writer for table ID: {}", tableId);
+      log.warn("Flushing records in JDBC Writer for table ID: {}", tableId);
       buffer.flush();
       buffer.close();
     }
-    connection.commit();
+
+    if (recordsToCommit >= config.transactionSize || config.transactionSize == 0) {
+      log.warn("Committing {} records in transaction...", recordsToCommit);
+      connection.commit();
+      recordsToCommit = 0;
+      return offsetsToCommit;
+    } else {
+      log.warn("Skipping transaction, wanted {} records, have only {}...", config.transactionSize,
+          recordsToCommit);
+      return Collections.emptyMap();
+    }
   }
 
   void closeQuietly() {

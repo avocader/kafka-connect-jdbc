@@ -15,6 +15,11 @@
 
 package io.confluent.connect.jdbc.sink;
 
+import org.apache.kafka.common.config.AbstractConfig;
+import org.apache.kafka.common.config.ConfigDef;
+import org.apache.kafka.common.config.ConfigException;
+import org.apache.kafka.common.config.types.Password;
+
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -31,11 +36,6 @@ import io.confluent.connect.jdbc.util.EnumRecommender;
 import io.confluent.connect.jdbc.util.QuoteMethod;
 import io.confluent.connect.jdbc.util.StringUtils;
 import io.confluent.connect.jdbc.util.TimeZoneValidator;
-
-import org.apache.kafka.common.config.AbstractConfig;
-import org.apache.kafka.common.config.ConfigDef;
-import org.apache.kafka.common.config.ConfigException;
-import org.apache.kafka.common.config.types.Password;
 
 public class JdbcSinkConfig extends AbstractConfig {
 
@@ -101,6 +101,12 @@ public class JdbcSinkConfig extends AbstractConfig {
       "Specifies how many records to attempt to batch together for insertion into the destination"
       + " table, when possible.";
   private static final String BATCH_SIZE_DISPLAY = "Batch Size";
+
+  public static final String TRANSACTION_SIZE = "transaction.size";
+  private static final int TRANSACTION_SIZE_DEFAULT = 0;
+  private static final String TRANSACTION_SIZE_DOC =
+      "The minimum record number in a database transaction.";
+  private static final String TRANSACTION_SIZE_DISPLAY = "Transaction Size";
 
   public static final String AUTO_CREATE = "auto.create";
   private static final String AUTO_CREATE_DEFAULT = "false";
@@ -282,6 +288,18 @@ public class JdbcSinkConfig extends AbstractConfig {
             ConfigDef.Width.SHORT,
             BATCH_SIZE_DISPLAY
         )
+        .define(
+            TRANSACTION_SIZE,
+            ConfigDef.Type.INT,
+            TRANSACTION_SIZE_DEFAULT,
+            NON_NEGATIVE_INT_VALIDATOR,
+            ConfigDef.Importance.MEDIUM,
+            TRANSACTION_SIZE_DOC,
+            WRITES_GROUP,
+           3,
+            ConfigDef.Width.SHORT,
+            TRANSACTION_SIZE_DISPLAY
+        )
         // Data Mapping
         .define(
             TABLE_NAME_FORMAT,
@@ -401,6 +419,7 @@ public class JdbcSinkConfig extends AbstractConfig {
   public final String connectionPassword;
   public final String tableNameFormat;
   public final int batchSize;
+  public final int transactionSize;
   public final int maxRetries;
   public final int retryBackoffMs;
   public final boolean autoCreate;
@@ -419,6 +438,7 @@ public class JdbcSinkConfig extends AbstractConfig {
     connectionPassword = getPasswordValue(CONNECTION_PASSWORD);
     tableNameFormat = getString(TABLE_NAME_FORMAT).trim();
     batchSize = getInt(BATCH_SIZE);
+    transactionSize = getInt(TRANSACTION_SIZE);
     maxRetries = getInt(MAX_RETRIES);
     retryBackoffMs = getInt(RETRY_BACKOFF_MS);
     autoCreate = getBoolean(AUTO_CREATE);

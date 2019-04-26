@@ -15,22 +15,7 @@
 
 package io.confluent.connect.jdbc.sink;
 
-import static org.easymock.EasyMock.expectLastCall;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.fail;
-
-import java.io.IOException;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.time.ZoneOffset;
-import java.util.Collections;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
-import java.util.TimeZone;
-
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
@@ -44,7 +29,25 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.time.ZoneOffset;
+import java.util.Collections;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
+import java.util.TimeZone;
+
 import io.confluent.connect.jdbc.util.DateTimeUtils;
+
+import static org.easymock.EasyMock.expect;
+import static org.easymock.EasyMock.expectLastCall;
+import static org.easymock.EasyMock.replay;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class JdbcSinkTaskTest extends EasyMockSupport {
   private final SqliteHelper sqliteHelper = new SqliteHelper(getClass().getSimpleName());
@@ -84,7 +87,11 @@ public class JdbcSinkTaskTest extends EasyMockSupport {
     props.put("db.timezone", timeZoneID);
 
     JdbcSinkTask task = new JdbcSinkTask();
-    task.initialize(mock(SinkTaskContext.class));
+    SinkTaskContext ctx = mock(SinkTaskContext.class);
+    Set<TopicPartition> assignment = Collections.emptySet();
+    expect(ctx.assignment()).andReturn(assignment);
+    replay(ctx);
+    task.initialize(ctx);
 
     task.start(props);
 
@@ -144,7 +151,12 @@ public class JdbcSinkTaskTest extends EasyMockSupport {
     props.put("pk.fields", "firstName,lastName");
 
     JdbcSinkTask task = new JdbcSinkTask();
-    task.initialize(mock(SinkTaskContext.class));
+
+    SinkTaskContext ctx = mock(SinkTaskContext.class);
+    Set<TopicPartition> assignment = Collections.emptySet();
+    expect(ctx.assignment()).andReturn(assignment).times(2);
+    replay(ctx);
+    task.initialize(ctx);
 
     final String topic = "atopic";
 
@@ -162,6 +174,15 @@ public class JdbcSinkTaskTest extends EasyMockSupport {
         "    bytes BLOB," +
         "    modified DATETIME, "+
         "PRIMARY KEY (firstName, lastName));"
+    );
+
+    sqliteHelper.createTable(
+        "CREATE TABLE " + OffsetsDbStorage.OFFSETS_TABLE_NAME + "(" +
+            "    " + OffsetsDbStorage.PARTITION_COLUMN_NAME + "  INTEGER," +
+            "    " + OffsetsDbStorage.OFFSET_COLUMN_NAME + "  BIGINT," +
+            "    " + OffsetsDbStorage.TOPIC_NAME_COLUMN_NAME + " TEXT," +
+            "PRIMARY KEY (" + OffsetsDbStorage.PARTITION_COLUMN_NAME + ", "
+            + OffsetsDbStorage.TOPIC_NAME_COLUMN_NAME + "));"
     );
 
     task.start(props);
@@ -212,7 +233,12 @@ public class JdbcSinkTaskTest extends EasyMockSupport {
 
     Set<SinkRecord> records = Collections.singleton(new SinkRecord("stub", 0, null, null, null, null, 0));
     final JdbcDbWriter mockWriter = createMock(JdbcDbWriter.class);
-    SinkTaskContext ctx = createMock(SinkTaskContext.class);
+    //SinkTaskContext ctx = createMock(SinkTaskContext.class);
+
+    SinkTaskContext ctx = mock(SinkTaskContext.class);
+    Set<TopicPartition> assignment = Collections.emptySet();
+    expect(ctx.assignment()).andReturn(assignment).times(2);
+    replay(ctx);
 
     mockWriter.write(records);
     expectLastCall().andThrow(new SQLException()).times(1 + maxRetries);
